@@ -13,10 +13,13 @@ return new class extends Migration
     {
         Schema::create('games', function (Blueprint $table) {
             $table->id();
+            $table->boolean('is_active')->default(true);
             $table->integer('number_of_teams');
             $table->integer('number_of_words');
             $table->integer('round_time');
+            $table->boolean('random_pick_of_players')->default(false);
             $table->foreignId('current_turn')->nullable()->constrained('users')->onDelete('set null');
+            $table->string('categories')->nullable();
             $table->timestamps();
         });
     }

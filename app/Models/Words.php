@@ -8,4 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 class Words extends Model
 {
     use HasFactory;
+
+    protected $fillable = [
+        'game_id',
+        'word',
+        'created_by',
+    ];
 }
