@@ -17,8 +17,10 @@ return new class extends Migration
             $table->integer('number_of_teams');
             $table->integer('number_of_words');
             $table->integer('round_time');
+            $table->integer('rounds')->default(1);
             $table->boolean('random_pick_of_players')->default(false);
-            $table->foreignId('current_turn')->nullable()->constrained('users')->onDelete('set null');
+            $table->integer('current_turn')->default(1);
+            $table->boolean('is_game_running')->default(false);
             $table->string('categories')->nullable();
             $table->timestamps();
         });

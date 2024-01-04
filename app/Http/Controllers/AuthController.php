@@ -8,6 +8,7 @@ use App\Events\UserCreated;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\BroadcastUserCreated;
 use App\Models\Games;
+use App\Models\TeamUser;
 
 class AuthController extends Controller
 {
@@ -19,8 +20,20 @@ class AuthController extends Controller
         return response()->json(['users' => $users], 200);
     }
 
+    public function getUserByTeamId($teamId)
+    {
+        $game = Games::where('is_active', true)->first();
+        $team = TeamUser::where('game_id', $game->id)->where('team_id', $teamId)->get();
+        $player_1 = User::find($team[0]->user_id);
+        $player_2 = User::find($team[1]->user_id);
+        $users = [$player_1, $player_2];
+
+        return response()->json(['users' => $users], 200);
+    }
+
     public function register(Request $request)
     {
+
         $game = Games::where('is_active', true)->first();
 
         // if user exists then login if not create user
@@ -29,6 +42,13 @@ class AuthController extends Controller
         if ($user) {
             $token = $user->createToken('authToken')->plainTextToken;
             return response()->json(['token' => $token], 200);
+        }
+
+        $expectedPlayers = $game->number_of_teams * 2;
+        $loggedPlayers = User::where('game_id', $game->id)->count();
+
+        if ($expectedPlayers == $loggedPlayers) {
+            return response()->json(['message' => 'game full'], 200);
         }
 
         // create user
@@ -101,7 +121,7 @@ class AuthController extends Controller
             $user->photo_path = Storage::url($path);
             $user->save();
 
-            broadcast(new UserCreated())->toOthers();
+            BroadcastUserCreated::dispatch($user);
             return response()->json(['message' => 'Photo uploaded successfully.', 'photo_path' => $user->photo_path], 200);
         }
 

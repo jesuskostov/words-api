@@ -10,7 +10,8 @@ use App\Events\GameCreated;
 use App\Models\TeamUser;
 use App\Models\Games;
 use App\Models\User;
-
+use App\Models\PlayerOrder;
+use App\Models\Scores;
 
 class TeamsController extends Controller
 {
@@ -18,6 +19,16 @@ class TeamsController extends Controller
     public function createTeams() {
         $game = Games::where('is_active', true)->first();
         $gameId = $game->id;
+        $expectedTeam = $game->number_of_teams;
+
+        // if teams are already created, return them
+        $teams = Teams::where('game_id', $gameId)->get();
+        if ($teams->count() == $expectedTeam) {
+            // return order of players and teams
+            $players = User::where('game_id', $gameId)->get();
+            $orderedPlayers = PlayerOrder::where('game_id', $gameId)->get();
+            return response()->json(['teams' => $teams, 'order' => $orderedPlayers], 200);
+        }
 
         $players = User::where('game_id', $gameId)->get();
         $shuffledPlayers = $players->shuffle();
@@ -28,7 +39,6 @@ class TeamsController extends Controller
                 'game_id' => $gameId,
                 'name' => 'Team ' . ($i / 2 + 1), // Example team name
                 'color' => '#' . str_pad(dechex(mt_rand(0, 0xFFFFFF)), 6, '0', STR_PAD_LEFT),
-                // Other team properties...
             ]);
 
             // Associate players with the team and include game_id
@@ -43,23 +53,29 @@ class TeamsController extends Controller
 
         // Now, set the order of turns for the players in the teams
         $orderedPlayers = collect();
-        // First, add the first player from each team
-        foreach ($teams as $team) {
-            $players = $team->users; // Assuming each team has exactly two players
-            $orderedPlayers->push($players[0]); // Add the first player
+        // Assuming each team has two players, alternate between the first and second player of each team
+        $maxPlayersInTeam = 2;
+        for ($j = 0; $j < $maxPlayersInTeam; $j++) {
+            foreach ($teams as $team) {
+                $players = $team->users; // Get the players of the team
+                if ($j < $players->count()) {
+                    // Only add the player if they exist in the team (to handle teams with an odd number of players)
+                    $orderedPlayers->push($players[$j]);
+                }
+            }
         }
 
-        // Then, add the second player from each team
-        foreach ($teams as $team) {
-            $players = $team->users; // Re-confirming each team has exactly two players
-            $orderedPlayers->push($players[1]); // Add the second player
+        // Create PlayerOrder for each player
+        foreach ($orderedPlayers as $index => $player) {
+            PlayerOrder::create([
+                'game_id' => $gameId,
+                'user_id' => $player->id,
+                'order' => $index + 1, // Order starts from 1
+            ]);
         }
 
-        // The $orderedPlayers now contains players in the required order
-        // Display the ordered list of players
-        foreach ($orderedPlayers as $player) {
-            echo $player->name . ' - ';
-        }
+
+        return response()->json(['teams' => $teams, 'order' => $orderedPlayers], 201);
 
     }
 
@@ -117,5 +133,20 @@ class TeamsController extends Controller
         return response()->json(['message' => 'Successfully joined team'], 200);
     }
 
+    public function getScores() {
+        $game = Games::where('is_active', true)->first();
+        $scores = Scores::where('game_id', $game->id)->get();
+        return response()->json(['scores' => $scores], 200);
+    }
+
+    public function getScoreForTeam() {
+        $user = auth()->user();
+        $teamId = TeamUser::where('user_id', $user->id)->first()->team_id;
+        $game = Games::where('is_active', true)->first();
+        $scores = Scores::where('game_id', $game->id)->where('team_id', $teamId)->first();
+
+        return response()->json(['scores' => $scores->points], 200);
+        
+    }
    
 }

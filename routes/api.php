@@ -7,6 +7,7 @@ use App\Http\Controllers\TeamsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TeamUserController;
 use App\Http\Controllers\WordsController;
+use App\Http\Controllers\PlayerOrderController;
 
 /*
 |--------------------------------------------------------------------------
@@ -31,6 +32,10 @@ Route::post('/create-game', [GamesController::class, 'create']);
 Route::get('/is-game-active', [GamesController::class, 'isGameActive']);
 // get all games
 Route::get('/teams', [TeamsController::class, 'index']);
+// End turn
+Route::middleware('auth:sanctum')->post('/end-round', [GamesController::class, 'endRound']);
+// get who is on turn
+Route::middleware('auth:sanctum')->get('/get-current-turn', [GamesController::class, 'getOnTurn']);
 
 /*
 |--------------------------------------------------------------------------
@@ -51,6 +56,8 @@ Route::middleware('web')->post('/check-user', [AuthController::class, 'checkUser
 Route::middleware('web')->get('/get-admin', [AuthController::class, 'getAdmin']);
 // get all users
 Route::middleware('auth:sanctum')->get('/get-users', [AuthController::class, 'index']);
+// get user by team id
+Route::middleware('auth:sanctum')->get('/get-user-by-team-id/{teamId}', [AuthController::class, 'getUserByTeamId']);
 
 /*
 |--------------------------------------------------------------------------
@@ -68,8 +75,11 @@ Route::middleware('auth:sanctum')->get('/get-teams-for-game/{gameId}', [TeamsCon
 // detach user from team
 Route::middleware('auth:sanctum')->post('/leave-team', [TeamUserController::class, 'leaveTeam']);
 // create team and turns
-Route::middleware('auth:sanctum')->post('/create-teams', [TeamsController::class, 'createTeams']);
-
+Route::middleware('auth:sanctum')->post('/mix-teams', [TeamsController::class, 'createTeams']);
+// get score for all teams
+Route::middleware('auth:sanctum')->get('/get-score', [TeamsController::class, 'getScore']);
+// get score for team by team id
+Route::middleware('auth:sanctum')->get('/get-score-for-team', [TeamsController::class, 'getScoreForTeam']);
 /*
 |--------------------------------------------------------------------------
 | WORDS
@@ -79,3 +89,11 @@ Route::middleware('auth:sanctum')->post('/create-teams', [TeamsController::class
 Route::middleware('auth:sanctum')->post('/create-word', [WordsController::class, 'createWord']);
 // Get words for game
 Route::middleware('auth:sanctum')->get('/get-words-for-game', [WordsController::class, 'getWordsForGame']);
+// check user how many words he has left
+Route::middleware('auth:sanctum')->get('/check-user-words', [WordsController::class, 'checkUserWords']);
+// get word
+Route::middleware('auth:sanctum')->get('/get-word', [WordsController::class, 'getWord']);
+// make a point
+Route::middleware('auth:sanctum')->post('/point', [WordsController::class, 'point']);
+// start timer 
+Route::middleware('auth:sanctum')->post('/start-timer', [WordsController::class, 'startTimer']);
