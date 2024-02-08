@@ -65,12 +65,18 @@ class TeamsController extends Controller
             }
         }
 
+        // if orderedPlayers is > 0, dont create new order
+        if (PlayerOrder::where('game_id', $gameId)->count() > 0) {
+            $orderedPlayers = PlayerOrder::where('game_id', $gameId)->get();
+            return response()->json(['teams' => $teams, 'order' => $orderedPlayers], 200);
+        }
+
         // Create PlayerOrder for each player
         foreach ($orderedPlayers as $index => $player) {
             PlayerOrder::create([
                 'game_id' => $gameId,
                 'user_id' => $player->id,
-                'order' => $index + 1, // Order starts from 1
+                'order' => $index + 1,
             ]);
         }
 
@@ -78,6 +84,7 @@ class TeamsController extends Controller
         return response()->json(['teams' => $teams, 'order' => $orderedPlayers], 201);
 
     }
+    
 
     /**
      * Display a listing of the resource.

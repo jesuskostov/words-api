@@ -8,6 +8,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\TeamUserController;
 use App\Http\Controllers\WordsController;
 use App\Http\Controllers\PlayerOrderController;
+use App\Http\Controllers\ScoresController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,12 +31,16 @@ use App\Http\Controllers\PlayerOrderController;
 Route::post('/create-game', [GamesController::class, 'create']);
 // get if is game active
 Route::get('/is-game-active', [GamesController::class, 'isGameActive']);
+// is game running
+Route::get('/is-game-running', [GamesController::class, 'isGameRunning']);
 // get all games
 Route::get('/teams', [TeamsController::class, 'index']);
 // End turn
 Route::middleware('auth:sanctum')->post('/end-round', [GamesController::class, 'endRound']);
 // get who is on turn
 Route::middleware('auth:sanctum')->get('/get-current-turn', [GamesController::class, 'getOnTurn']);
+// start game
+Route::middleware('auth:sanctum')->post('/start-game', [GamesController::class, 'startGame']);
 
 /*
 |--------------------------------------------------------------------------
@@ -55,7 +60,7 @@ Route::middleware('web')->post('/check-user', [AuthController::class, 'checkUser
 // return user which is admin
 Route::middleware('web')->get('/get-admin', [AuthController::class, 'getAdmin']);
 // get all users
-Route::middleware('auth:sanctum')->get('/get-users', [AuthController::class, 'index']);
+Route::get('/get-users', [AuthController::class, 'index']);
 // get user by team id
 Route::middleware('auth:sanctum')->get('/get-user-by-team-id/{teamId}', [AuthController::class, 'getUserByTeamId']);
 
@@ -68,7 +73,7 @@ Route::middleware('auth:sanctum')->get('/get-user-by-team-id/{teamId}', [AuthCon
 Route::middleware('auth:sanctum')->post('/join-team', [TeamsController::class, 'joinTeam']);
 // get all users for each team
 Route::middleware('auth:sanctum')->get('/get-users-per-team', [TeamUserController::class, 'getUsersPerTeam']);
-// get all users for a team by team id
+// get all users for a team by team ide
 Route::middleware('auth:sanctum')->get('/get-users-for-team/{teamId}', [TeamUserController::class, 'getUsersForTeam']);
 // get all teams by game id
 Route::middleware('auth:sanctum')->get('/get-teams-for-game/{gameId}', [TeamsController::class, 'getTeamsForGame']);
@@ -89,6 +94,8 @@ Route::middleware('auth:sanctum')->get('/get-score-for-team', [TeamsController::
 Route::middleware('auth:sanctum')->post('/create-word', [WordsController::class, 'createWord']);
 // Get words for game
 Route::middleware('auth:sanctum')->get('/get-words-for-game', [WordsController::class, 'getWordsForGame']);
+// Get expected words for game
+Route::get('/get-expected-words-for-game', [WordsController::class, 'getExpectedWordsForGame']);
 // check user how many words he has left
 Route::middleware('auth:sanctum')->get('/check-user-words', [WordsController::class, 'checkUserWords']);
 // get word
@@ -97,3 +104,21 @@ Route::middleware('auth:sanctum')->get('/get-word', [WordsController::class, 'ge
 Route::middleware('auth:sanctum')->post('/point', [WordsController::class, 'point']);
 // start timer 
 Route::middleware('auth:sanctum')->post('/start-timer', [WordsController::class, 'startTimer']);
+// pause timer
+Route::middleware('auth:sanctum')->post('/pause-timer', [WordsController::class, 'pauseTimer']);
+// resume timer
+Route::middleware('auth:sanctum')->post('/resume-timer', [WordsController::class, 'resumeTimer']);
+// skip word
+Route::middleware('auth:sanctum')->post('/skip-word', [WordsController::class, 'skipWord']);
+// stop timer
+Route::middleware('auth:sanctum')->post('/stop-timer', [WordsController::class, 'stopTimer']);
+// get current time
+Route::middleware('auth:sanctum')->get('/get-current-time', [WordsController::class, 'getCurrentTimerState']);
+/*
+|--------------------------------------------------------------------------
+| SCOREBOARD
+|--------------------------------------------------------------------------
+*/
+// get scoreboard
+Route::get('/get-scoreboard', [ScoresController::class, 'getScoreboard']);
+// Route::middleware('auth:sanctum')->get('/get-scoreboard', [ScoresController::class, 'getScoreboard']);

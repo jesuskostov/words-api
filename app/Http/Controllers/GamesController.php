@@ -14,6 +14,7 @@ use App\Events\GameCreated;
 use App\Models\PlayerOrder;
 use App\Models\TeamUser;
 use App\Events\TurnUpdate;
+use App\Events\GameStarted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -25,6 +26,16 @@ class GamesController extends Controller
     public function index()
     {
         //
+    }
+
+    public function startGame(Request $request) {
+        $game = Games::where('is_active', true)->first();
+        $game->is_game_running = true;
+        $game->save();
+
+        broadcast(new GameStarted())->toOthers();
+
+        return response()->json(['game' => $game], 200);
     }
 
     // find if we have active game
@@ -50,6 +61,11 @@ class GamesController extends Controller
     
     }
 
+    public function isGameRunning() {
+        $game = Games::where('is_active', true)->first();
+        return response()->json(['isGameRunning' => $game->is_game_running], 200);
+    }
+
     /**
      * Show the form for creating a new resource.
      */
@@ -60,7 +76,8 @@ class GamesController extends Controller
             'number_of_teams' => $request->number_of_teams,
             'number_of_words' => $request->number_of_words,
             'round_time' => $request->round_time,
-            'current_turn' => null,
+            'current_turn' => 1,
+            'is_game_running' => false,
             'random_pick_of_players' => $request->random_pick_of_players,
             'categories' => $request->categories,
         ]);
@@ -83,47 +100,37 @@ class GamesController extends Controller
 
     public function endRound() {
     
-        // Start transaction to ensure atomic operations
-        DB::beginTransaction();
-
-        try {
-            $game = Games::where('is_active', true)->lockForUpdate()->first();
-            
-            if (!$game) {
-                // Log and handle the case where no active game is found
-                Log::info('No active game found.');
-                DB::rollBack();
-                return;
-            }
-
-            $isLastTurn = $game->number_of_teams * 2 == $game->current_turn;
-
-            if ($isLastTurn) {
-                // Reset current_turn and save
-                $game->current_turn = 1;
-                $game->save();
-                
-                // Log for debugging
-                Log::info('Last turn reached, resetting current turn.');
-            } else {
-                // Increment current_turn and save
-                $game->current_turn++;
-                $game->save();
-
-                // Log for debugging
-                Log::info('Incrementing current turn: ' . $game->current_turn);
-            }
-
-            // Broadcast the update
-            broadcast(new TurnUpdate())->toOthers();
-
-            // Commit the transaction
-            DB::commit();
-        } catch (\Exception $e) {
-            // Rollback the transaction in case of an error
-            DB::rollBack();
-            Log::error('Error in endRound function: ' . $e->getMessage());
+        $game = Games::where('is_active', true)->first();
+        
+        if (!$game) {
+            // Log and handle the case where no active game is found
+            Log::info('No active game found.');
+            return;
         }
+
+        $isLastTurn = $game->number_of_teams * 2 == $game->current_turn;
+
+        if ($isLastTurn) {
+            // Reset current_turn and save
+            $game->current_turn = 1;
+            $game->save();
+            
+            // Log for debugging
+            Log::info('Last turn reached, resetting current turn.');
+        } else {
+            // Increment current_turn and save
+            $game->current_turn++;
+            $game->save();
+
+            // Log for debugging
+            Log::info('Incrementing current turn: ' . $game->current_turn);
+        }
+
+        // Broadcast the update
+        broadcast(new TurnUpdate())->toOthers();
+
+        return response()->json('turn updated', 200);
+
     }
 
 

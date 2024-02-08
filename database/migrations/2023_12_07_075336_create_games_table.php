@@ -21,6 +21,9 @@ return new class extends Migration
             $table->boolean('random_pick_of_players')->default(false);
             $table->integer('current_turn')->default(1);
             $table->boolean('is_game_running')->default(false);
+            $table->integer('timer_start')->nullable();
+            $table->enum('timer_state', ['running', 'paused', 'stopped'])->default('stopped');
+            $table->integer('timer_elapsed')->nullable();
             $table->string('categories')->nullable();
             $table->timestamps();
         });

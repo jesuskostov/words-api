@@ -16,6 +16,7 @@ class Games extends Model
         'number_of_words',
         'round_time',
         'current_turn',
+        'is_game_running',
         'random_pick_of_players',
         'categories',
     ];

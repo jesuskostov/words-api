@@ -68,8 +68,18 @@ class AuthController extends Controller
 
     public function getUser()
     {
+        
+        // get user and his teammate
         $user = auth()->user();
-        return response()->json(['user' => $user], 200);
+        $team = TeamUser::where('user_id', $user->id)->first();
+        if ($team) {
+            $teammate = TeamUser::where('team_id', $team->team_id)->where('user_id', '!=', $user->id)->first();
+            $teammate = User::where('id', $teammate->user_id)->first();
+            return response()->json(['user' => $user, 'teammate' => $teammate], 200);
+        } else {
+            return response()->json(['user' => $user], 200);
+        }
+
     }
 
     public function getAdmin()

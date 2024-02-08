@@ -11,13 +11,15 @@ use App\Models\TeamUser;
 use Illuminate\Http\Request;
 use App\Events\WordCreated;
 use App\Events\TimerStart;
+use App\Events\TimerPause;
+use App\Events\TimerResume;
+use App\Services\TimerService;
+use App\Events\NextRound;
 
 class WordsController extends Controller
 {
 
-    // createWord
-    public function createWord(Request $request)
-    {
+    public function createWord(Request $request) {
         // get active game
         $game = Games::where('is_active', true)->first();
         $user = auth()->user();
@@ -42,18 +44,26 @@ class WordsController extends Controller
         return response()->json(['word' => $word], 201);
     }
 
-    // get all words for game
-    public function getWordsForGame()
-    {
+    public function getWordsForGame() {
         $game = Games::where('is_active', true)->first();
         $words = Words::where('game_id', $game->id)->get();
 
         return response()->json(['words' => $words], 200);
     }
 
-    // checkUserWords
-    public function checkUserWords()
-    {
+    public function getExpectedWordsForGame() {
+        $game = Games::where('is_active', true)->first();
+
+        if (!$game) {
+            return response()->json(['message' => 'No active game'], 200);
+        }
+
+        $wordsCount = $game->number_of_words * $game->number_of_teams * 2;
+
+        return response()->json(['words_to_insert' => $wordsCount], 200);
+    }
+
+    public function checkUserWords() {
         $game = Games::where('is_active', true)->first();
         $user = auth()->user();
 
@@ -103,68 +113,132 @@ class WordsController extends Controller
             $score->save();
         }
 
+        // check if not guessed words left
+        if (!Words::where('game_id', $game->id)->where('guessed', false)->exists()) {
+            $game->rounds++;
+            $game->timer_start = null;
+            $game->timer_elapsed = null;
+            $game->timer_state = 'stopped';
+            $isLastTurn = $game->number_of_teams * 2 == $game->current_turn;
+            if ($isLastTurn) {
+                $game->current_turn = 1;
+            } else {
+                $game->current_turn++;
+            }
+            $game->save();
+            Words::where('game_id', $game->id)->update(['guessed' => false]);
+            broadcast(new NextRound())->toOthers();
+
+            return response()->json(['message' => 'next_round', 'round' => $game->rounds], 200);
+        }
+
         return response()->json(['message' => 'success'], 200);
-    }
+    }    
 
     public function startTimer() {
+        $game = Games::where('is_active', true)->first();
+    
+        if ($game) {
+            $game->timer_start = now(); // Set the start time to now
+            $game->timer_state = 'running'; // Update the timer state
+            $game->save();
+
+            broadcast(new TimerStart($game->round_time))->toOthers();
+        }
+
+        return response()->json(['message' => 'Timer started'], 200);
+    }
+
+    public function pauseTimer() {
+        $game = Games::where('is_active', true)->first();
+
+        if ($game && $game->timer_state === 'running') {
+            $elapsed = now()->diffInSeconds($game->timer_start);
+            $game->timer_elapsed = $elapsed;
+            $game->timer_state = 'paused';
+            $game->save();
+
+            broadcast(new TimerPause($elapsed))->toOthers();
+        }
+
+        return response()->json(['message' => 'Timer paused'], 200);
+    }
+
+    public function resumeTimer() {
+        $game = Games::where('is_active', true)->first();
+
+        if ($game && $game->timer_state === 'paused') {
+            // Calculate remaining time
+            $remainingTime = $game->round_time - $game->timer_elapsed;
+
+            // Set new start time based on the remaining time
+            $game->timer_start = now()->subSeconds($game->round_time - $remainingTime);
+            $game->timer_state = 'running';
+            $game->save();
+
+            broadcast(new TimerResume($remainingTime))->toOthers();
+        }
+
+        return response()->json(['message' => 'Timer resumed'], 200);
+    }
+
+    public function stopTimer() {
+        $game = Games::where('is_active', true)->first();
+
+        if ($game) {
+            $game->timer_start = null;
+            $game->timer_elapsed = null;
+            $game->timer_state = 'stopped';
+            $game->save();
+        }
+
+        return response()->json(['message' => 'Timer stopped'], 200);
+    }
+
+    public function getCurrentTime() {
+        $game = Games::where('is_active', true)->first();
         
-        broadcast(new TimerStart())->toOthers();
+        if ($game) {
+            $timerService = new TimerService($game);
+            $currentTime = $timerService->getRemainingTime();
+        } else {
+            $currentTime = 0;
+        }
 
+        return response()->json(['currentTime' => $currentTime], 200);
     }
 
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
-    {
-        //
+    public function getCurrentTimerState() {
+        $game = Games::where('is_active', true)->first();
+
+        if ($game) {
+            $remainingTime = 0;
+            if ($game->timer_state === 'running') {
+                $remainingTime = max(0, $game->round_time - now()->diffInSeconds($game->timer_start));
+            } elseif ($game->timer_state === 'paused') {
+                $remainingTime = max(0, $game->round_time - $game->timer_elapsed);
+            }
+
+            return response()->json([
+                'remainingTime' => $remainingTime,
+                'timerState' => $game->timer_state,
+                'totalDuration' => $game->round_time
+            ], 200);
+        }
+
+        return response()->json(['message' => 'No active game found'], 404);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
+    public function skipWord(Request $request) {
+        $game = Games::where('is_active', true)->first();
+        $received_word = $request->word;
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreWordsRequest $request)
-    {
-        //
-    }
+        if (!Words::where('game_id', $game->id)->where('guessed', false)->exists()) {
+            return response()->json(['message' => 'No more words'], 200);
+        }
+        
+        $word = Words::where('game_id', $game->id)->where('guessed', false)->where('word', '!=', $received_word)->inRandomOrder()->first();
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(Words $words)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Words $words)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(UpdateWordsRequest $request, Words $words)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(Words $words)
-    {
-        //
+        return response()->json([$word->word], 200);
     }
 }
